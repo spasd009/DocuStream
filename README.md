@@ -1,1 +1,321 @@
 # DocuStream
+
+DocuStream is a Java 25 LTS web application for discovering documentary titles, viewing documentary details, and maintaining a personal watchlist. It uses Spring Boot, Thymeleaf, Spring Security, JDBC, and MySQL. It runs as an independent application and does not require Node.js.
+
+> **Project status:** This repository contains the application source and Maven build. The runnable JAR is generated locally and intentionally excluded from Git. The bundled catalogue contains labelled demo entries; no copyrighted documentary videos are provided.
+
+## Contents
+
+- [Features and user workflows](#features-and-user-workflows)
+- [Technology](#technology)
+- [Requirements](#requirements)
+- [Quick start on Windows](#quick-start-on-windows)
+- [Run with Docker MySQL](#run-with-docker-mysql)
+- [Build and develop](#build-and-develop)
+- [Tests](#tests)
+- [Configuration](#configuration)
+- [Production and deployment](#production-and-deployment)
+- [Security notes](#security-notes)
+- [Licensed media](#licensed-media)
+- [Repository layout](#repository-layout)
+- [CI workflow](#ci-workflow)
+- [Current limitations and possible extensions](#current-limitations-and-possible-extensions)
+
+## Features and user workflows
+
+### Visitor workflow
+
+1. Open the home page.
+2. Browse the public documentary catalogue.
+3. Search by title and/or genre.
+4. Open a documentary detail page and use the HTML5 player when media is available.
+5. Register an account to access personal features.
+
+### Account workflow
+
+1. Register with a username of 3–40 letters, digits, or underscores and a password of at least 10 characters and no more than 72 UTF-8 bytes.
+2. Sign in through Spring Security's form login.
+3. Add or remove catalogue entries from your personal watchlist.
+4. View the signed-in account page and watchlist.
+5. Sign out using the application logout flow.
+
+There are no default accounts. User accounts and watchlists are stored server-side in MySQL. Watchlists are scoped to the authenticated account.
+
+### Screenshots and previews
+
+The [preview gallery](docustream/previews/index.html) shows rendered pages for the home page, registration, login, catalogue, search, player, watchlist, and account. The images are design previews, not evidence of a live browser session or production deployment.
+
+## Technology
+
+| Area | Technology |
+| --- | --- |
+| Language/runtime | Java 25 LTS |
+| Application framework | Spring Boot 3.5.16 |
+| Web pages | Spring MVC and Thymeleaf |
+| Authentication | Spring Security form login |
+| Persistence | Spring JDBC and MySQL Connector/J |
+| Production database | MySQL 8.0.16+ (MySQL 8.4 recommended) |
+| Automated-test database | H2 in MySQL compatibility mode |
+| Build | Maven 3.9+ |
+
+H2 is test-scoped only. The production application expects MySQL.
+
+## Requirements
+
+- Java 25 LTS JDK
+- Apache Maven 3.9 or newer
+- MySQL Server 8.0.16 or newer, or Docker Desktop / Docker Engine with Docker Compose
+- For Windows setup instructions: PowerShell; MySQL Workbench is optional
+
+Check the local Java and Maven installations:
+
+```powershell
+java -version
+mvn -version
+```
+
+## Quick start on Windows
+
+### 1. Create the MySQL database and application user
+
+Start MySQL Server. Open [`docustream/mysql-setup.sql`](docustream/mysql-setup.sql) in MySQL Workbench as an administrator. Replace both occurrences of `REPLACE_WITH_A_STRONG_PASSWORD` with the same strong, unique application password, then execute the script.
+
+The script creates:
+
+- `docustream`, the application database.
+- `docustream_test`, an optional isolated database for MySQL integration testing.
+- `docustream_app`, a local application account with restricted database permissions.
+
+Do not commit a filled-in copy of this script. Keep any custom setup script in `docustream/mysql-setup.local.sql`, which is ignored by Git.
+
+### 2. Configure credentials
+
+In the same PowerShell terminal used to start the application, set credentials:
+
+```powershell
+$env:DATABASE_USER = "docustream_app"
+$env:DATABASE_PASSWORD = "YOUR_PASSWORD_FROM_mysql-setup.sql"
+```
+
+Alternatively, start the hidden-password-prompt launcher from the project directory:
+
+```powershell
+cd .\docustream
+.\start-windows.ps1
+```
+
+The launcher asks for credentials only when the environment variables are missing, runs the existing JAR or falls back to `mvn spring-boot:run`, and restores the terminal's prior environment when it exits. It does not write credentials to a file. If the current PowerShell policy blocks scripts, use the environment-variable method and Maven command instead; do not weaken machine policy just for this launcher.
+
+The batch launcher is also available from the project directory:
+
+```powershell
+.\run-windows.bat
+```
+
+Set the database environment variables before running it. The batch file uses an existing JAR if present; otherwise it invokes Maven. The JAR is not included in this repository and is generated by the build steps below.
+
+### 3. Run the application
+
+From `docustream`:
+
+```powershell
+mvn spring-boot:run
+```
+
+Open [http://localhost:8080](http://localhost:8080), register, and sign in. The application creates/initializes its schema on startup, but the MySQL database and user must already exist.
+
+To package and launch an executable JAR:
+
+```powershell
+mvn clean package
+java -jar .\target\docustream-1.0.0.jar
+```
+
+The project ignores generated `target/` output and `docustream/*.jar`; build these locally.
+
+## Run with Docker MySQL
+
+Docker is an alternative to installing and running MySQL locally. From `docustream`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env` and replace both password placeholders with strong, different passwords. Start the database:
+
+```powershell
+docker compose up -d
+```
+
+Set application credentials in the PowerShell session that will run Spring Boot, then start the application:
+
+```powershell
+$env:DATABASE_USER = "docustream_app"
+$env:DATABASE_PASSWORD = "YOUR_DATABASE_PASSWORD_FROM_ENV"
+mvn spring-boot:run
+```
+
+Spring Boot does **not** automatically read the Docker Compose `.env` file; set the application environment variables separately. Do not run the local MySQL service and Docker MySQL on the same host port simultaneously. To use a different Docker host port, set `MYSQL_PORT` in `.env` (for example, `MYSQL_PORT=3307`) and update `DATABASE_URL` to match. Compose database initialization variables apply when the MySQL data volume is first created; changing them later does not rewrite an existing database. Back up the MySQL volume/database before removing or replacing it.
+
+Stop the database container without deleting its data:
+
+```powershell
+docker compose down
+```
+
+## Build and develop
+
+Open the repository in VS Code or another Java IDE. The project is Maven-based and does not have a Node.js build.
+
+From `docustream`:
+
+```powershell
+mvn clean verify
+```
+
+Run the application with automatic compilation:
+
+```powershell
+mvn spring-boot:run
+```
+
+For a packaged artifact:
+
+```powershell
+mvn clean package
+```
+
+Suggested VS Code extensions are Extension Pack for Java, Spring Boot Extension Pack, and a Maven extension. A Maven wrapper is not currently included.
+
+## Tests
+
+The standard test suite uses an isolated in-memory H2 database and does not require a MySQL server:
+
+```powershell
+mvn clean verify
+```
+
+The current suite contains seven JUnit/Spring integration tests covering page rendering, registration and login, CSRF, search and watchlists, validation and error views, account privacy, security headers, and media URL validation. The latest recorded run passed all 7 tests; this is not a guarantee that every local environment or live database has been verified.
+
+### MySQL integration test mode
+
+For a separate MySQL-backed integration run, use **only** the isolated `docustream_test` database created by the setup script. The tests delete/reset records; never point these variables at the live application database.
+
+```powershell
+$env:TEST_DATABASE_URL = "jdbc:mysql://localhost:3306/docustream_test?connectionTimeZone=LOCAL"
+$env:TEST_DATABASE_DRIVER = "com.mysql.cj.jdbc.Driver"
+$env:TEST_DATABASE_USER = "docustream_app"
+$env:TEST_DATABASE_PASSWORD = $env:DATABASE_PASSWORD
+$env:TEST_SCHEMA = "classpath:schema.sql"
+mvn clean verify
+```
+
+After testing, clear these overrides before running ordinary tests:
+
+```powershell
+Remove-Item Env:TEST_DATABASE_URL, Env:TEST_DATABASE_DRIVER, Env:TEST_DATABASE_USER, Env:TEST_DATABASE_PASSWORD, Env:TEST_SCHEMA -ErrorAction SilentlyContinue
+```
+
+The MySQL-backed test setup expects the isolated database to contain no unrelated catalogue data.
+
+## Configuration
+
+Spring configuration is in [`docustream/src/main/resources/application.properties`](docustream/src/main/resources/application.properties). Environment variables can override these settings:
+
+| Variable/property | Default | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | `jdbc:mysql://localhost:3306/docustream?connectionTimeZone=LOCAL` | MySQL JDBC connection URL |
+| `DATABASE_USER` | Required | MySQL application username |
+| `DATABASE_PASSWORD` | Required | MySQL application password |
+| `PORT` | `8080` | HTTP port |
+| `SPRING_PROFILES_ACTIVE` | Unset | Set to `prod` to enable production HTTPS requirements |
+| `SERVER_SSL_ENABLED` | Unset | Enable Spring's direct TLS listener when configured |
+| `SERVER_SSL_KEY_STORE` | Unset | Path to a TLS keystore when using direct TLS |
+| `SERVER_SSL_KEY_STORE_PASSWORD` | Unset | Server-only TLS keystore password |
+
+For production MySQL, set `DATABASE_URL` to the actual database hostname and configure certificate validation with `sslMode=VERIFY_IDENTITY`. Use a trusted certificate. Do not put real credentials or private keys in source files, templates, browser code, URLs, or this repository.
+
+## Production and deployment
+
+Production HTTPS settings are intentionally opt-in. Before setting `SPRING_PROFILES_ACTIVE=prod`:
+
+1. Configure HTTPS either directly in Spring Boot or at a trusted TLS reverse proxy.
+2. If terminating TLS at a proxy, configure trusted forwarded headers and block untrusted direct access to the app before enabling secure-cookie/HTTPS enforcement; otherwise redirects may loop or forwarded headers may be spoofed.
+3. Set production database credentials and use `sslMode=VERIFY_IDENTITY` with the database hostname and trusted certificate.
+4. Store credentials and TLS material in the deployment environment or a secret store. Keep keystores outside the repository.
+5. Back up and monitor the MySQL database.
+
+For direct TLS, configure Spring Boot's SSL listener using environment-based properties such as `SERVER_SSL_ENABLED=true`, `SERVER_SSL_KEY_STORE`, and `SERVER_SSL_KEY_STORE_PASSWORD`. Supply the keystore and password through secure deployment configuration; neither is included here.
+
+This repository does not include cloud infrastructure, deployment manifests, or provider integrations. Cloud deployment requires environment-specific database, TLS, secrets, networking, and hosting configuration.
+
+## Security notes
+
+- Passwords are hashed with BCrypt; there are no shipped default accounts.
+- Registration validates username and password length.
+- Database operations use bound parameters and transaction handling where needed.
+- CSRF protection remains enabled for state-changing form actions.
+- Private account and watchlist data is limited to the authenticated user.
+- Browser responses use a same-origin content security policy, anti-framing, no-referrer and permissions policies; private pages use no-store caching.
+- Sessions use HTTP-only cookies, expire after 30 minutes, and use cookie-only tracking.
+- The production profile enables secure session cookies and requires HTTPS.
+- Error responses avoid returning stack traces, SQL details, or raw binding errors.
+- `.env`, local database setup scripts, JARs, logs, keystores, secrets, generated Maven output, and demo media are covered by ignore rules.
+
+These are implementation notes, not a claim of a production security audit. Review all changes and secrets before publishing.
+
+## Licensed media
+
+The app's catalogue includes labelled demo entries, but no copyrighted documentary videos. To try playback with content you are licensed to use, place browser-compatible MP4 files in:
+
+```text
+docustream/src/main/resources/static/media/
+```
+
+Use these expected filenames:
+
+```text
+planet.mp4
+history.mp4
+science.mp4
+```
+
+Then rebuild the JAR. The prebuilt application cannot discover files added beside the JAR after packaging. MP4 files are intentionally ignored by Git; do not commit media unless you have the rights to distribute it. Admin uploads, external object storage, and CDN integration are not implemented.
+
+## Repository layout
+
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── java.yml                 # Java 25 build/test workflow
+├── docustream/
+│   ├── .env.example                 # Placeholder Docker DB settings
+│   ├── compose.yaml                 # Optional MySQL 8.4 service
+│   ├── mysql-setup.sql              # Local MySQL DB/user setup template
+│   ├── pom.xml                      # Maven build/dependencies
+│   ├── previews/                    # Rendered design preview images
+│   └── src/
+│       ├── main/java/               # Spring Boot application
+│       ├── main/resources/          # Properties, SQL schema, templates, CSS
+│       ├── test/java/               # JUnit/Spring integration tests
+│       └── test/resources/          # Isolated test schema/config
+├── .gitignore
+└── README.md
+```
+
+## CI workflow
+
+GitHub Actions is configured in [`.github/workflows/java.yml`](.github/workflows/java.yml). On every push and pull request, it checks out the repository, configures Temurin Java 25 with Maven dependency caching, and runs:
+
+```shell
+mvn -B verify
+```
+
+The command runs from `docustream`. CI tests use the isolated in-memory H2 configuration and do not require a live MySQL service.
+
+## Current limitations and possible extensions
+
+Not currently implemented: administrator catalogue editing or uploads, role-based administration, password reset/email verification, login throttling, payments, live GPS, object storage/CDN, Flyway database migrations, external integration APIs, or production deployment automation. These are possible future improvements, not existing features.
+
+The standard automated tests exercise the Spring MVC controllers, security, service behavior, transactions, and H2 database. They do not prove behavior against a live MySQL server, a public deployment, or an external integration. The project validation notes are in [`docustream/VALIDATION.md`](docustream/VALIDATION.md); the update history is in [`docustream/CHANGELOG.md`](docustream/CHANGELOG.md).

@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS users (username VARCHAR(80) PRIMARY KEY, password VARCHAR(100) NOT NULL);
+CREATE TABLE IF NOT EXISTS documentaries (id BIGINT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(150) NOT NULL, genre VARCHAR(60) NOT NULL, description VARCHAR(2000) NOT NULL, media VARCHAR(300) NOT NULL);
+CREATE TABLE IF NOT EXISTS watchlist (username VARCHAR(80) NOT NULL, documentary_id BIGINT NOT NULL, PRIMARY KEY(username, documentary_id), FOREIGN KEY(username) REFERENCES users(username), FOREIGN KEY(documentary_id) REFERENCES documentaries(id));
